@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "lostark-market"
+version = "0.1.0"
+description = ""
+authors = ["Dmytro Herashchenko <51529317+dmytro-duck@users.noreply.github.com>"]
+readme = "README.md"
+packages = [{include = "market"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+scapy = "^2.4.5"
+py-snappy = "^0.1.0a1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
