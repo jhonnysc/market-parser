@@ -39,7 +39,10 @@ def process_packet(packet: Packet):
 
     print(f'Packet Size: {pkt_size}/{len(p)}')
     print(f'Commpressed by {p[4]}')
-    print_search_result(payload_decrypted)
+    try:
+        print_search_result(payload_decrypted)
+    except Exception as e:
+        print(e)
 
 
 # TODO: replace with fast Cython function
@@ -53,5 +56,5 @@ def xor_cipher(data: bytes, seed: int, key: bytes) -> bytes:
 
 t = AsyncSniffer(filter='tcp src port 6040', prn=process_packet, store=0)
 t.start()
-time.sleep(30)
+time.sleep(600)
 t.stop()
