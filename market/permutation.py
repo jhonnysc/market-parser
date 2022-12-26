@@ -1,15 +1,17 @@
 from ortools.sat.python import cp_model
-from ortools.sat.python import swig_helper 
 import json
 from typing_extensions import TypedDict
-from typing import List, Literal, Callable
+from typing import List, Literal, Callable, Tuple
 from functools import reduce
+from tabulate import tabulate
 
 
-ENGRAVING_CHOICES = ['Hit Master', 'Communication Overflow']
+ENGRAVING_CHOICES = ['Keen Blunt Weapon', 'Communication Overflow', 'Raid Captain', 'Grudge']
 ONLY_BUY_NOW = True
 ONLY_BID = True
 MAX_VALUE = 0
+STONE: List[Tuple[str, int]] = [("Keen Blunt Weapon", 7), ("Raid Captain", 5)]
+BOOK: List[Tuple[str, int]] = [("Grudge", 12), ("Communication Overflow", 9)]
 
 
 class Status(TypedDict):
@@ -23,7 +25,7 @@ class Engravings(TypedDict):
 class Accessory(TypedDict):
     Buyout: int
     Bid: int
-    Status: Status
+    Status: List[Status]
     Type: Literal['ring', 'earring', 'necklace']
     Engravings: List[Engravings]
 
@@ -106,17 +108,34 @@ def GetSumOfCost():
     
     return cp_model.LinearExpr.Sum(linearExpr)
 
-# for desiredEngraving in ENGRAVING_CHOICES:
-    # model.Add(GetSumOfEngravingType(desiredEngraving) >= 15)
-model.Add(GetSumOfEngravingType('Hit Master') <= 9)
-model.Add(GetSumOfEngravingType('Grudge') <= 3)
-model.Add(GetSumOfEngravingType('Communication Overflow') <= 9)
-model.Add(GetSumOfEngravingType('Raid Captain') <= 15)
+
+
+def find_stone_or_book(engraving: str) -> int:
+    if STONE:
+        for name, value in STONE:
+            if engraving == name:
+                return value
+    if BOOK:
+        for name, value in BOOK:
+            if engraving == name:
+                return value
+    
+    return 0
+
+for desiredEngraving in ENGRAVING_CHOICES:
+    model.Add(GetSumOfEngravingType(desiredEngraving) >= (15 - find_stone_or_book(desiredEngraving)))
+
+
+
+# model.Add(GetSumOfEngravingType('Hit Master') >= 9)
+# model.Add(GetSumOfEngravingType('Grudge') >= 3)
+# model.Add(GetSumOfEngravingType('Communication Overflow') >= 15)
+# model.Add(GetSumOfEngravingType('Raid Captain') >= 15)
 
 
 if MAX_VALUE:
     model.Add(GetSumOfCost() <= MAX_VALUE)
-    
+
 solver = cp_model.CpSolver()
 
 
@@ -134,21 +153,61 @@ class MySolutionCallback(cp_model.CpSolverSolutionCallback):
     def on_solution_callback(self):
         solution = self.Response().solution
         # if self.Response().status != cp_model.OPTIMAL: return;
-        
         build = []
         for i, result in enumerate(solution):
             if result: build.append(self.accessories[i])
 
+        
         permutations.append(build)
+
 
 solver.Solve(model, MySolutionCallback())
 
 def accumulator(acc: int, permutation: Accessory):
-    return acc + permutation['Bid']
-
-price = reduce(accumulator, permutations[0], 0)
+    if ONLY_BID:
+        return acc + permutation['Bid']
+    return acc + permutation['Buyout'] if permutation['Buyout'] else permutation['Bid']
 
 print("Number of avaiable builds", len(permutations))
+
+
+
+fields = ['Critical', 'Swiftness']
+
+fields.extend(ENGRAVING_CHOICES)
+
+for i, permutation in enumerate(permutations, 1):
+    table = [fields]
+    for item in permutation:
+        row = [0, 0, 0, 0, 0, 0]
+
+        for status in item['Status']:
+            if status['StatusType'] == 'Crit':
+                row[0] = status['StatusValue']
+            else:
+                row[1] = status['StatusValue']
+
+        for engraving in item['Engravings']:
+            if engraving['EngravingType'] in fields:
+                row[fields.index(engraving['EngravingType'])] = engraving['Value']
+        table.append(row)
+    price = reduce(accumulator, permutation, 0)
+    print("Cost:", price)
+    print(tabulate(table, tablefmt='fancy_grid'))
+
+    # values.append(row)
+
+
+
+        
+        
+        
+
+    # price = reduce(accumulator, permutation, 0)
+    # print()
+
+    
+
 
 
 
