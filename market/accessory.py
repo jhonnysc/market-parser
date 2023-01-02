@@ -1,6 +1,7 @@
 import struct
 from typing import Dict
 import json
+from uuid import uuid4
 
 with open('Engravings.json', 'r') as r:
     STATS: Dict = json.load(r)
@@ -18,6 +19,7 @@ def parse_necklace(data: tuple, buyout: int, bid: int) -> Dict:
                 "StatusValue": data[3]
             }
         ],
+        "Id": str(uuid4()),
         "Buyout": buyout,
         "Bid": bid,
         "Type": "necklace",
@@ -45,6 +47,7 @@ def parse_ring_earring(data: tuple, buyout: int, bid: int, item_id) -> Dict:
                 "StatusValue": data[1]
             },
         ],
+        "Id": str(uuid4()),
         "Buyout": buyout,
         "Bid": bid,
         "Type": 'ring' if item_id in RINGS else 'earring',
@@ -66,8 +69,10 @@ def parse_ring_earring(data: tuple, buyout: int, bid: int, item_id) -> Dict:
 
 
 def print_search_result(search: bytes) -> None:
+    print(search)
     _, _, count = SEARCH_HEADER.unpack_from(search, 0)
     offset = SEARCH_HEADER.size
+    print(offset)
     print( + NECKLACE_FOOTER.size)
     results = []
     for _ in range(count):
@@ -88,6 +93,8 @@ def print_search_result(search: bytes) -> None:
         d.seek(0)
         d.write(json.dumps(js, indent=4))
         d.truncate()
+
+
 
 def create_struct(template: str) -> struct.Struct:
     return struct.Struct(template.replace(4 * 'i', 'i').replace(8 * 'q', 'q'))

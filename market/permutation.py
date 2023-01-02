@@ -1,17 +1,28 @@
 from ortools.sat.python import cp_model
 import json
 from typing_extensions import TypedDict
-from typing import List, Literal, Callable, Tuple
+from typing import List, Literal, Callable, Tuple, Set
 from functools import reduce
 from tabulate import tabulate
+import csv
 
 
-ENGRAVING_CHOICES = ['Keen Blunt Weapon', 'Communication Overflow', 'Raid Captain', 'Grudge']
-ONLY_BUY_NOW = True
-ONLY_BID = True
-MAX_VALUE = 0
+# ENGRAVING_CHOICES = ['Keen Blunt Weapon', 'Communication Overflow', 'Raid Captain', 'Grudge']
+# STATUS_REQUESTED = ["Crit", "Swiftness"]
+# ONLY_BUY_NOW = False
+# ONLY_BID = False
+# MAX_VALUE = 0
 STONE: List[Tuple[str, int]] = [("Keen Blunt Weapon", 7), ("Raid Captain", 5)]
 BOOK: List[Tuple[str, int]] = [("Grudge", 12), ("Communication Overflow", 9)]
+
+ENGRAVING_CHOICES = [('Keen Blunt Weapon', 15), ('Communication Overflow', 15), ('Raid Captain', 15), ('Grudge', 15), ("Master Summoner", 5)]
+STATUS_REQUESTED = ["Crit", "Swiftness"]
+MAIN_STATUS = 'Swiftness'
+ONLY_BUY_NOW = False
+ONLY_BID = False
+MAX_VALUE = 20000
+# STONE: List[Tuple[str, int]] = [("Awakening", 7), ("Expert", 7)]
+# BOOK: List[Tuple[str, int]] = [("Blessed Aura", 9), ("Heavy Armor", 9)]
 
 
 class Status(TypedDict):
@@ -25,6 +36,7 @@ class Engravings(TypedDict):
 class Accessory(TypedDict):
     Buyout: int
     Bid: int
+    Id: str
     Status: List[Status]
     Type: Literal['ring', 'earring', 'necklace']
     Engravings: List[Engravings]
@@ -53,8 +65,18 @@ model = cp_model.CpModel()
 
 
 
-def search(engravings: List[Engravings], engravingType: str, cost = 0) -> int:
-    for engraving in engravings:
+def search(accessory: Accessory, engravingType: str, cost = 0) -> int:
+
+
+    if accessory['Type'] == 'necklace':
+        for item_status in accessory['Status']:
+            if item_status['StatusType'] not in STATUS_REQUESTED:
+                return 0
+    else:
+        if accessory['Status'][0]['StatusType'] != MAIN_STATUS:
+            return 0            
+
+    for engraving in accessory['Engravings']:
         if engraving['EngravingType'] == engravingType:
             return engraving['Value']
     
@@ -77,17 +99,16 @@ model.Add(cp_model.LinearExpr.Sum(ringsIntVars) == 2)
 
 
 
-
 def GetSumOfEngravingType(engravingType: str):
     linearExpr = []
     for i, _ in enumerate(necklaces):
-        linearExpr.append(necklaceIntVars[i] * search(necklaces[i]['Engravings'], engravingType))
+        linearExpr.append(necklaceIntVars[i] * search(necklaces[i], engravingType))
 
     for i, _ in enumerate(earrings):
-        linearExpr.append(earringsIntVars[i] * search(earrings[i]['Engravings'], engravingType))
+        linearExpr.append(earringsIntVars[i] * search(earrings[i], engravingType))
 
     for i, _ in enumerate(rings):
-        linearExpr.append(ringsIntVars[i] * search(rings[i]['Engravings'], engravingType))
+        linearExpr.append(ringsIntVars[i] * search(rings[i], engravingType))
     
     return cp_model.LinearExpr.Sum(linearExpr)
 
@@ -123,14 +144,8 @@ def find_stone_or_book(engraving: str) -> int:
     return 0
 
 for desiredEngraving in ENGRAVING_CHOICES:
-    model.Add(GetSumOfEngravingType(desiredEngraving) >= (15 - find_stone_or_book(desiredEngraving)))
-
-
-
-# model.Add(GetSumOfEngravingType('Hit Master') >= 9)
-# model.Add(GetSumOfEngravingType('Grudge') >= 3)
-# model.Add(GetSumOfEngravingType('Communication Overflow') >= 15)
-# model.Add(GetSumOfEngravingType('Raid Captain') >= 15)
+    name, value = desiredEngraving
+    model.Add(GetSumOfEngravingType(name) >= (value - find_stone_or_book(name)))
 
 
 if MAX_VALUE:
@@ -159,9 +174,15 @@ class MySolutionCallback(cp_model.CpSolverSolutionCallback):
 
         
         permutations.append(build)
-
+        
+solver.parameters.enumerate_all_solutions = True
+# if you want less solution decrase the max time in seconds or it will take forever
+solver.parameters.max_time_in_seconds = 60
+solver.parameters.log_search_progress = True
+solver.log_callback = print
 
 solver.Solve(model, MySolutionCallback())
+
 
 def accumulator(acc: int, permutation: Accessory):
     if ONLY_BID:
@@ -172,40 +193,62 @@ print("Number of avaiable builds", len(permutations))
 
 
 
-fields = ['Critical', 'Swiftness']
+fields = ['Bid', 'Buy now']
+for status in STATUS_REQUESTED:
+    fields.append(status)
 
-fields.extend(ENGRAVING_CHOICES)
+for engraving in ENGRAVING_CHOICES:
+    fields.append(engraving[0])
+
+table = [fields]
+
+done_ids: Set[str] = set()
 
 for i, permutation in enumerate(permutations, 1):
-    table = [fields]
+    total_cost_bid_only = 0
+    total_cost_buy_now = 0
+    total_cost_mixed = 0
+    ids: List[str] = []
+    
     for item in permutation:
-        row = [0, 0, 0, 0, 0, 0]
+        bid = item['Bid'] if item['Bid'] else 0
+        buy_now = item['Buyout'] if item['Buyout'] else 0
+        total_cost_bid_only += bid
+        total_cost_buy_now += buy_now
+        total_cost_mixed += bid if bid > 0 else buy_now
+        row = [bid, buy_now]
+        row.extend([0]*len(STATUS_REQUESTED))
+        row.extend([0]*len(ENGRAVING_CHOICES))
+        ids.append(item['Id'])
 
         for status in item['Status']:
-            if status['StatusType'] == 'Crit':
-                row[0] = status['StatusValue']
-            else:
-                row[1] = status['StatusValue']
+            if status['StatusType'] in STATUS_REQUESTED:
+                indexof = STATUS_REQUESTED.index(status['StatusType'])
+                row[indexof + 2] = status['StatusValue']
 
         for engraving in item['Engravings']:
             if engraving['EngravingType'] in fields:
                 row[fields.index(engraving['EngravingType'])] = engraving['Value']
+        
         table.append(row)
-    price = reduce(accumulator, permutation, 0)
-    print("Cost:", price)
-    print(tabulate(table, tablefmt='fancy_grid'))
 
-    # values.append(row)
+    ids.sort()
 
+    sum_id = ''.join(ids)
 
+    if sum_id in done_ids:
+        print('REPETIDO', sum_id)
+    done_ids.add(sum_id)
 
-        
-        
-        
+    table.append(['Total Bid', 'Total Buynow', 'Total'])
+    table.append([total_cost_bid_only, total_cost_buy_now, total_cost_mixed])
+    table.append(['--------']*8)
+    
 
-    # price = reduce(accumulator, permutation, 0)
-    # print()
-
+with open('results.csv', 'w', newline='') as f:
+    write = csv.writer(f)
+    for row in table:
+        write.writerow(row)
     
 
 
