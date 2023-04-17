@@ -3,30 +3,23 @@ import json
 from typing_extensions import TypedDict
 from typing import List, Literal, Callable, Tuple, Set
 from functools import reduce
-from tabulate import tabulate
+from tabulate import tabulate, SEPARATING_LINE
+import numpy as np
 import csv
 
+STONE: List[Tuple[str, int]] = [("Hit Master", 7), ("Adrenaline", 7)]
+BOOK: List[Tuple[str, int]] = [("Grudge", 12), ("Igniter", 12)]
 
-# ENGRAVING_CHOICES = ['Keen Blunt Weapon', 'Communication Overflow', 'Raid Captain', 'Grudge']
-# STATUS_REQUESTED = ["Crit", "Swiftness"]
-# ONLY_BUY_NOW = False
-# ONLY_BID = False
-# MAX_VALUE = 0
-STONE: List[Tuple[str, int]] = [("Keen Blunt Weapon", 7), ("Raid Captain", 5)]
-BOOK: List[Tuple[str, int]] = [("Grudge", 12), ("Communication Overflow", 9)]
-
-ENGRAVING_CHOICES = [('Keen Blunt Weapon', 15), ('Communication Overflow', 15), ('Raid Captain', 15), ('Grudge', 15), ("Master Summoner", 5)]
-STATUS_REQUESTED = ["Crit", "Swiftness"]
-MAIN_STATUS = 'Swiftness'
+ENGRAVING_CHOICES = [('Precise Dagger', 15), ("AllOutAttack", 15)]
+STATUS_REQUESTED = ["Spec", "Crit"]
+MAIN_STATUS = 'Spec'
 ONLY_BUY_NOW = False
 ONLY_BID = False
-MAX_VALUE = 20000
-# STONE: List[Tuple[str, int]] = [("Awakening", 7), ("Expert", 7)]
-# BOOK: List[Tuple[str, int]] = [("Blessed Aura", 9), ("Heavy Armor", 9)]
+MAX_VALUE = 0
 
 
 class Status(TypedDict):
-    StatusType: Literal['Swiftness', 'Specializaiton', 'lazy add the rest later']
+    StatusType: Literal['Swiftness', 'Spec', 'lazy add the rest later']
     StatusValue: int
 
 class Engravings(TypedDict):
@@ -49,6 +42,20 @@ with open('dataset.json', 'r') as dataset:
     rings: List[Accessory] = []
 
     for item in data:
+        
+        # if item['Type'] == 'necklace':
+        #     for item_status in item['Status']:
+        #         if item_status['StatusType'] not in STATUS_REQUESTED:
+        #             continue
+        # else:
+        #     if item['Status'][0]['StatusType'] != MAIN_STATUS:
+        #         continue
+            
+        # normalized_accessory_engraving = list(map(lambda x: x['EngravingType'], item['Engravings']))
+        # normalized_chosen_engraving = list(map(lambda x: x[0], ENGRAVING_CHOICES))
+        
+        # if True not in np.in1d(normalized_accessory_engraving, normalized_chosen_engraving): continue
+
         if ONLY_BUY_NOW and not item['Buyout']: continue
         if item['Type'] == 'ring':
             rings.append(item)
@@ -56,6 +63,7 @@ with open('dataset.json', 'r') as dataset:
             earrings.append(item)
         else:
             necklaces.append(item)
+            
 
 necklaceIntVars = []
 earringsIntVars = []
@@ -63,19 +71,7 @@ ringsIntVars = []
 
 model = cp_model.CpModel()
 
-
-
 def search(accessory: Accessory, engravingType: str, cost = 0) -> int:
-
-
-    if accessory['Type'] == 'necklace':
-        for item_status in accessory['Status']:
-            if item_status['StatusType'] not in STATUS_REQUESTED:
-                return 0
-    else:
-        if accessory['Status'][0]['StatusType'] != MAIN_STATUS:
-            return 0            
-
     for engraving in accessory['Engravings']:
         if engraving['EngravingType'] == engravingType:
             return engraving['Value']
@@ -109,6 +105,7 @@ def GetSumOfEngravingType(engravingType: str):
 
     for i, _ in enumerate(rings):
         linearExpr.append(ringsIntVars[i] * search(rings[i], engravingType))
+        
     
     return cp_model.LinearExpr.Sum(linearExpr)
 
@@ -146,10 +143,13 @@ def find_stone_or_book(engraving: str) -> int:
 for desiredEngraving in ENGRAVING_CHOICES:
     name, value = desiredEngraving
     model.Add(GetSumOfEngravingType(name) >= (value - find_stone_or_book(name)))
+    
 
 
-if MAX_VALUE:
-    model.Add(GetSumOfCost() <= MAX_VALUE)
+
+
+# if MAX_VALUE:
+#     model.Add(GetSumOfCost() <= MAX_VALUE)
 
 solver = cp_model.CpSolver()
 
@@ -177,7 +177,7 @@ class MySolutionCallback(cp_model.CpSolverSolutionCallback):
         
 solver.parameters.enumerate_all_solutions = True
 # if you want less solution decrase the max time in seconds or it will take forever
-solver.parameters.max_time_in_seconds = 60
+solver.parameters.max_time_in_seconds = 2
 solver.parameters.log_search_progress = True
 solver.log_callback = print
 
@@ -193,14 +193,14 @@ print("Number of avaiable builds", len(permutations))
 
 
 
-fields = ['Bid', 'Buy now']
+headers = ['Bid', 'Buy now']
 for status in STATUS_REQUESTED:
-    fields.append(status)
+    headers.append(status)
 
 for engraving in ENGRAVING_CHOICES:
-    fields.append(engraving[0])
+    headers.append(engraving[0])
 
-table = [fields]
+table = [headers]
 
 done_ids: Set[str] = set()
 
@@ -227,8 +227,8 @@ for i, permutation in enumerate(permutations, 1):
                 row[indexof + 2] = status['StatusValue']
 
         for engraving in item['Engravings']:
-            if engraving['EngravingType'] in fields:
-                row[fields.index(engraving['EngravingType'])] = engraving['Value']
+            if engraving['EngravingType'] in headers:
+                row[headers.index(engraving['EngravingType'])] = engraving['Value']
         
         table.append(row)
 
@@ -240,9 +240,10 @@ for i, permutation in enumerate(permutations, 1):
         print('REPETIDO', sum_id)
     done_ids.add(sum_id)
 
-    table.append(['Total Bid', 'Total Buynow', 'Total'])
-    table.append([total_cost_bid_only, total_cost_buy_now, total_cost_mixed])
-    table.append(['--------']*8)
+    table.append(headers)
+    
+    
+print(tabulate(table, tablefmt='grid'))
     
 
 with open('results.csv', 'w', newline='') as f:

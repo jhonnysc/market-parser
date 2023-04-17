@@ -2,6 +2,11 @@ import struct
 from typing import Dict
 import json
 from uuid import uuid4
+from parser import MarketParser
+import pprint
+
+
+
 
 with open('Engravings.json', 'r') as r:
     STATS: Dict = json.load(r)
@@ -68,33 +73,72 @@ def parse_ring_earring(data: tuple, buyout: int, bid: int, item_id) -> Dict:
     }    
 
 
+
 def print_search_result(search: bytes) -> None:
-    print(search)
-    _, _, count = SEARCH_HEADER.unpack_from(search, 0)
-    offset = SEARCH_HEADER.size
-    print(offset)
-    print( + NECKLACE_FOOTER.size)
-    results = []
-    for _ in range(count):
-        _, _, buyout, bid, item_id = ITEM_HEADER.unpack_from(search, offset)
-        offset += ITEM_HEADER.size
-        if item_id in EARINGS or item_id in RINGS:
-            results.append(parse_ring_earring(EARING_FOOTER.unpack_from(search, offset), buyout, bid, item_id))
-            offset += EARING_FOOTER.size
-        if item_id in NECKLACES:
-            results.append(parse_necklace(NECKLACE_FOOTER.unpack_from(search, offset), buyout, bid))
-            offset += NECKLACE_FOOTER.size
+
+
+    parser = MarketParser(search)
+
+    print('parsing')
+    parser.parse()
+
+    print('search results')
+
+    pprint.pprint(parser.search_results)
+
+
+    # with open('rings.bin', 'wb') as f:
+    #     f.write(search)
+
+    # _, _, count = SEARCH_HEADER.unpack_from(search, 0)
+
+    # offset = SEARCH_HEADER.size
+
+    # print(offset)
+
+
+    # print(ITEM_HEADER.unpack_from(search, offset))
+    # results = []
+    # for _ in range(count):
+    #     _, _, buyout, bid, item_id = ITEM_HEADER.unpack_from(search, offset)
+    #     offset += ITEM_HEADER.size
+    #     if item_id in EARINGS or item_id in RINGS:
+    #         results.append(parse_ring_earring(EARING_FOOTER.unpack_from(search, offset), buyout, bid, item_id))
+    #         offset += EARING_FOOTER.size
+    #     if item_id in NECKLACES:
+    #         results.append(parse_necklace(NECKLACE_FOOTER.unpack_from(search, offset), buyout, bid))
+    #         offset += NECKLACE_FOOTER.size
+
+    # print(results)
     
-    with open('dataset.json', 'r+') as d:
-        js: list = json.load(d)
+    # with open('dataset.json', 'r+') as d:
+    #     js: list = json.load(d)
 
-        js.extend(results)
+    #     js.extend(results)
 
-        d.seek(0)
-        d.write(json.dumps(js, indent=4))
-        d.truncate()
+    #     d.seek(0)
+    #     d.write(json.dumps(js, indent=4))
+    #     d.truncate()
 
 
+
+def guess_struct(payload):
+    # Define possible field types and sizes
+    field_types = ['x', 'b', 'B', 'h', 'H', 'i', 'I', 'q', 'Q', 'f', 'd']
+    field_sizes = [1, 2, 4, 8]
+
+    # Try all possible combinations of field types and sizes
+    for num_fields in range(1, len(payload) // min(field_sizes) + 1):
+        for field_type in field_types:
+            for field_size in field_sizes:
+                struct_str = '<' + field_type * num_fields * field_size
+                try:
+                    struct.unpack(struct_str, payload)
+                    return struct_str
+                except struct.error:
+                    pass
+
+    return None
 
 def create_struct(template: str) -> struct.Struct:
     return struct.Struct(template.replace(4 * 'i', 'i').replace(8 * 'q', 'q'))
@@ -142,6 +186,7 @@ EARING_FOOTER = create_struct('<'
 
 EARINGS = {
     # relic earing
+    
     213300011,
     213300021,
     213300031,

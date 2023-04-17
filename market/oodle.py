@@ -118,4 +118,4 @@ class Oodle:
         return Path(value, 'Binaries', 'Win64', 'oo2net_9_win64.dll')
 
 
-oodle = Oodle(Path('assets', 'oo2net_9_win64.dll'), Path('assets', 'oodle_state.bin'))
+oodle = Oodle(Path('meter-data', 'oo2net_9_win64.dll'), Path('meter-data', 'oodle_state.bin'))

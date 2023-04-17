@@ -7,9 +7,9 @@ from oodle import oodle
 from accessory import print_search_result
 
 # TODO: find this somewhere in assets?
-AuctionSearchOpCode = 53341
+AuctionSearchOpCode = 36394
 
-with open(Path('assets', 'xor.bin'), 'rb') as f:
+with open(Path('meter-data', 'xor.bin'), 'rb') as f:
     xorkey = f.read()
 
 def process_packet(packet: Packet):
@@ -19,9 +19,12 @@ def process_packet(packet: Packet):
 
     pkt_size, op_code = struct.unpack_from('HH', p)
 
-    if pkt_size > len(p):
-        print(f'Fragmented packet {pkt_size}/{len(p)}')
-        print(p)
+
+    # if pkt_size > len(p):
+    #     print(f'Fragmented packet {pkt_size}/{len(p)}')
+    #     print(p)
+
+    # print(op_code)
 
     if not op_code == AuctionSearchOpCode:
         return
