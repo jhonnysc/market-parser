@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/binary"
+	"flag"
+	"fmt"
 	"io/ioutil"
 	oodle "market/oodle"
 	parser "market/packet/market_search"
@@ -14,15 +16,51 @@ var (
 	xor_key, _ = ioutil.ReadFile("../meter-data/xor.bin")
 )
 
-func xor_cipher(data []byte, seed int, xorKey []byte) {
+var devicecNameFlag = flag.String("device", "none", "device name")
+
+func xorCipher(data []byte, seed int, xorKey []byte) {
 	for i := 0; i < len(data); i++ {
 		data[i] ^= xorKey[seed%len(xorKey)]
 		seed++
 	}
 }
 
+func selectInterface() string {
+	interfaces, err := pcap.FindAllDevs()
+
+	if err != nil {
+		panic(err)
+	}
+
+	for i, iface := range interfaces {
+		println(i, iface.Name)
+	}
+
+	var selected int
+
+	println("Select interface: ")
+
+	_, err = fmt.Scanf("%d", &selected)
+
+	if err != nil {
+		panic(err)
+	}
+
+	return interfaces[selected].Name
+}
+
 func sniffer(processPacket func([]byte)) {
-	handle, err := pcap.OpenLive("\\Device\\NPF_{BF46F36F-F80E-4E9D-8D8A-18A8C353858E}", 65536, false, 3)
+	var interfaceName string
+
+	if *devicecNameFlag == "none" {
+		interfaceName = selectInterface()
+	} else {
+		interfaceName = *devicecNameFlag
+	}
+
+	println("Starting sniffer on interface: ", interfaceName)
+
+	handle, err := pcap.OpenLive(interfaceName, 65536, false, 3)
 
 	if err != nil {
 		panic(err)
@@ -58,7 +96,7 @@ func processPacket(raw []byte) {
 		return
 	}
 
-	xor_cipher(raw[6:packet_size], int(op_code), xor_key)
+	xorCipher(raw[6:packet_size], int(op_code), xor_key)
 
 	decompressed, err := oodle.Decompress(raw[6:packet_size])
 
@@ -72,6 +110,8 @@ func processPacket(raw []byte) {
 
 // Decompresses a byte array of Oodle Compressed Data (Requires Oodle DLL)
 func main() {
+	flag.Parse()
+
 	oodle.Init()
 	sniffer(processPacket)
 }

@@ -2,11 +2,12 @@ package market
 
 import (
 	"encoding/binary"
+	"fmt"
 )
 
 var (
 	item_header_size         = 144
-	search_header_size       = 14
+	value_offset             = 17
 	necklace_footer_size     = 159
 	earring_ring_footer_size = 130
 )
@@ -89,7 +90,7 @@ var NecklacesIds = map[uint32]struct{}{
 	213200030: {},
 }
 
-var StatusIds = map[int]string{
+var StatusIds = map[uint32]string{
 	107: "Disrespect",
 	109: "Spirit Absorption",
 	110: "Ether Predator",
@@ -186,23 +187,33 @@ var StatusIds = map[int]string{
 }
 
 type Necklace struct {
-	stat1  uint32
-	stat2  uint32
-	eng1   uint32
-	eng2   uint32
-	neg    uint32
-	bid    uint32
-	buyout uint32
+	stat1      uint32
+	stat1Value uint32
+	stat2      uint32
+	stat2Value uint32
+	eng1       uint32
+	eng1Value  uint32
+	eng2       uint32
+	eng2Value  uint32
+	neg        uint32
+	negValue   uint32
+	bid        uint32
+	buyout     uint32
 }
 
 type EarringRing struct {
-	stat1  uint32
-	stat2  uint32
-	eng1   uint32
-	eng2   uint32
-	neg    uint32
-	bid    uint32
-	buyout uint32
+	stat1      uint32
+	stat1Value uint32
+	stat2      uint32
+	stat2Value uint32
+	eng1       uint32
+	eng1Value  uint32
+	eng2       uint32
+	eng2Value  uint32
+	neg        uint32
+	negValue   uint32
+	bid        uint32
+	buyout     uint32
 }
 
 type Header struct {
@@ -214,24 +225,33 @@ type Header struct {
 
 func GetNecklace(data []byte) Necklace {
 	return Necklace{
-		stat1:  binary.LittleEndian.Uint32(data[99:]),
-		stat2:  binary.LittleEndian.Uint32(data[128:]),
-		eng1:   binary.LittleEndian.Uint32(data[215:]),
-		eng2:   binary.LittleEndian.Uint32(data[186:]),
-		neg:    binary.LittleEndian.Uint32(data[157:]),
-		bid:    binary.LittleEndian.Uint32(data[267:]),
-		buyout: binary.LittleEndian.Uint32(data[283:]),
+		stat1:      binary.LittleEndian.Uint32(data[99:]),
+		stat1Value: binary.LittleEndian.Uint32(data[99+value_offset:]),
+		stat2:      binary.LittleEndian.Uint32(data[128:]),
+		stat2Value: binary.LittleEndian.Uint32(data[128+value_offset:]),
+		eng1:       binary.LittleEndian.Uint32(data[215:]),
+		eng1Value:  binary.LittleEndian.Uint32(data[215+value_offset:]),
+		eng2:       binary.LittleEndian.Uint32(data[186:]),
+		eng2Value:  binary.LittleEndian.Uint32(data[186+value_offset:]),
+		neg:        binary.LittleEndian.Uint32(data[157:]),
+		negValue:   binary.LittleEndian.Uint32(data[157+value_offset:]),
+		bid:        binary.LittleEndian.Uint32(data[267:]),
+		buyout:     binary.LittleEndian.Uint32(data[283:]),
 	}
 }
 
 func GetEarringRing(data []byte) EarringRing {
 	return EarringRing{
-		stat1:  binary.LittleEndian.Uint32(data[99:]),
-		eng1:   binary.LittleEndian.Uint32(data[157:]),
-		eng2:   binary.LittleEndian.Uint32(data[186:]),
-		neg:    binary.LittleEndian.Uint32(data[128:]),
-		bid:    binary.LittleEndian.Uint32(data[238:]),
-		buyout: binary.LittleEndian.Uint32(data[254:]),
+		stat1:      binary.LittleEndian.Uint32(data[99:]),
+		stat1Value: binary.LittleEndian.Uint32(data[99+value_offset:]),
+		eng1:       binary.LittleEndian.Uint32(data[157:]),
+		eng1Value:  binary.LittleEndian.Uint32(data[157+value_offset:]),
+		eng2:       binary.LittleEndian.Uint32(data[186:]),
+		eng2Value:  binary.LittleEndian.Uint32(data[186+value_offset:]),
+		neg:        binary.LittleEndian.Uint32(data[128:]),
+		negValue:   binary.LittleEndian.Uint32(data[128+value_offset:]),
+		bid:        binary.LittleEndian.Uint32(data[238:]),
+		buyout:     binary.LittleEndian.Uint32(data[254:]),
 	}
 }
 
@@ -272,6 +292,47 @@ func getHeader(data []byte) Header {
 	}
 }
 
+func getStatus(status uint32) string {
+	value, ok := StatusIds[status]
+
+	if ok {
+		return value
+	}
+	return "Unknown"
+}
+
+// ring is the same for rings and earrings
+func formatResult(ring *EarringRing, necklace *Necklace) string {
+	var result string
+	if ring != nil {
+
+		eng1 := getStatus(ring.eng1)
+		eng2 := getStatus(ring.eng2)
+		stat1 := getStatus(ring.stat1)
+		neg := getStatus(ring.neg)
+
+		result += fmt.Sprintf("%s: %d", eng1, ring.eng1Value)
+		result += fmt.Sprintf(" | %s: %d", eng2, ring.eng2Value)
+		result += fmt.Sprintf(" | %s: %d", stat1, ring.stat1Value)
+		result += fmt.Sprintf(" | %s: %d", neg, ring.negValue)
+
+		return result
+	}
+
+	eng1 := getStatus(necklace.eng1)
+	eng2 := getStatus(necklace.eng2)
+	stat1 := getStatus(necklace.stat1)
+	stat2 := getStatus(necklace.stat2)
+	neg := getStatus(necklace.neg)
+	result += fmt.Sprintf("%s: %d", eng1, necklace.eng1Value)
+	result += fmt.Sprintf(" | %s: %d", eng2, necklace.eng2Value)
+	result += fmt.Sprintf(" | %s: %d", stat1, necklace.stat1Value)
+	result += fmt.Sprintf(" | %s: %d", stat2, necklace.stat2Value)
+	result += fmt.Sprintf(" | %s: %d", neg, necklace.negValue)
+
+	return result
+}
+
 func ParseData(data []byte) {
 	search := data[16:]
 	maxResultsPerPage := 10
@@ -286,17 +347,20 @@ func ParseData(data []byte) {
 
 		item_header := getHeader(search[currentOffset:])
 
-		// // break
+		println("-------------------------------------------------")
+
+		fmt.Printf("Item Type: %s | Buyout: %d | Bid: %d \n", item_header.item_type, item_header.buyout, item_header.bid)
+
 		if item_header.item_type == "Ring" || item_header.item_type == "Earring" {
 			itemStatus := GetEarringRing(search[currentOffset:])
 
-			println(item_header.item_type, itemStatus.stat1, itemStatus.stat2, itemStatus.eng1, itemStatus.eng2, itemStatus.neg, itemStatus.bid, itemStatus.buyout)
+			println(formatResult(&itemStatus, nil))
 
 			currentOffset += item_header_size + earring_ring_footer_size
 		} else {
 			itemStatus := GetNecklace(search[currentOffset:])
 
-			println(itemStatus.stat1, itemStatus.stat2, itemStatus.eng1, itemStatus.eng2, itemStatus.neg, itemStatus.bid, itemStatus.buyout)
+			println(formatResult(nil, &itemStatus))
 
 			currentOffset += item_header_size + necklace_footer_size
 		}
