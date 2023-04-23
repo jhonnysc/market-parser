@@ -38,6 +38,7 @@ var EarringsIds = map[uint32]struct{}{
 	213200011: {},
 	213200031: {},
 	213200041: {},
+	213200111: {},
 }
 
 var RingsIds = map[uint32]struct{}{
@@ -278,21 +279,24 @@ func ParseData(data []byte) {
 	currentOffset := 0
 
 	for i := 0; i < maxResultsPerPage; i++ {
-		item_header := getHeader(search[currentOffset:])
 
-		println(item_header.bid, item_header.buyout, item_header.item_type, item_header.item_id)
+		if len(search[currentOffset:]) < item_header_size {
+			break
+		}
+
+		item_header := getHeader(search[currentOffset:])
 
 		// // break
 		if item_header.item_type == "Ring" || item_header.item_type == "Earring" {
-			// itemStatus := GetEarringRing(search[currentOffset+item_header_size:])
+			itemStatus := GetEarringRing(search[currentOffset:])
 
-			// println(itemStatus.stat1, itemStatus.stat2, itemStatus.eng1, itemStatus.eng2, itemStatus.neg, itemStatus.bid, itemStatus.buyout)
+			println(item_header.item_type, itemStatus.stat1, itemStatus.stat2, itemStatus.eng1, itemStatus.eng2, itemStatus.neg, itemStatus.bid, itemStatus.buyout)
 
 			currentOffset += item_header_size + earring_ring_footer_size
 		} else {
-			// itemStatus := GetNecklace(search[currentOffset:])
+			itemStatus := GetNecklace(search[currentOffset:])
 
-			// println(itemStatus.stat1, itemStatus.stat2, itemStatus.eng1, itemStatus.eng2, itemStatus.neg, itemStatus.bid, itemStatus.buyout)
+			println(itemStatus.stat1, itemStatus.stat2, itemStatus.eng1, itemStatus.eng2, itemStatus.neg, itemStatus.bid, itemStatus.buyout)
 
 			currentOffset += item_header_size + necklace_footer_size
 		}
