@@ -282,13 +282,17 @@ func ParseData(data []byte) {
 
 		println(item_header.bid, item_header.buyout, item_header.item_type, item_header.item_id)
 
-		// break
+		// // break
 		if item_header.item_type == "Ring" || item_header.item_type == "Earring" {
-			itemStatus := GetEarringRing(search[currentOffset+item_header_size:])
+			// itemStatus := GetEarringRing(search[currentOffset+item_header_size:])
+
+			// println(itemStatus.stat1, itemStatus.stat2, itemStatus.eng1, itemStatus.eng2, itemStatus.neg, itemStatus.bid, itemStatus.buyout)
 
 			currentOffset += item_header_size + earring_ring_footer_size
 		} else {
-			itemStatus := GetNecklace(search[currentOffset:])
+			// itemStatus := GetNecklace(search[currentOffset:])
+
+			// println(itemStatus.stat1, itemStatus.stat2, itemStatus.eng1, itemStatus.eng2, itemStatus.neg, itemStatus.bid, itemStatus.buyout)
 
 			currentOffset += item_header_size + necklace_footer_size
 		}
